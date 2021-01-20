@@ -16,7 +16,7 @@ If you do want to use video-caffe with cudnn8, you need to make these changes in
     1) Open the file “cmake/Cuda.cmake”.  replace "cudnn.h" with "cudnn_version.h" by commenting/uncommenting the lines where they are.
     2) In cudnn_ndconv_layer.cu, cudnn_conv_layer.cpp and cudnn_deconv_layer.cpp  change all "#if 0 // CUDNN_VERSION_MIN(8, 0, 0)" to "if CUDNN_VERSION_MIN(8, 0, 0)".
 
-# As cuDNN8.x is supported by the above changes, the following requirements are not necessary now: 
+# As cuDNN8.x is supported by the above changes, the following requirements of installing cuda10.2 and libcudnn7_7.x + libcudnn7-dev_7.x are not necessary now, you can use video-caffe with cuda11.x + cudnn8.x 
 # Requirements \[Deprecated\]
 Make sure that cuda10.2 and libcudnn7_7.x + libcudnn7-dev_7.x and opencv3/opencv4 are installed on your NX or Nano, if not, you can install cuda10.2 and opencv by NVIDIA's sdkmanager(Jet Pack4.4), and install libcudnn7_7.x + libcudnn7-dev_7.x by deb packages. As video-caffe uses cudnn API whose version is not higher than 7.x, but sdkmanager install cudnn 8.x on Xavier NX or Nano by default, so you have to install libcudnn7_7.x + libcudnn7-dev_7.x by manual. 
 
@@ -32,6 +32,7 @@ install cudnn7.6.3 for cuda10.0 (it actually also works for cuda10.2):
     2)sudo dpkg -i libcudnn7-dev_7.6.3.28-1+cuda10.0_arm64.deb 
 
 If you installed your NX or Nano with sdkmanager, cuda10.2 should be there and you don't need install it by manual, but you may have to install cudnn7.6.3 by manual as cudnn8.x is installed by sdkmanager by default. Please note you don't need remove cudnn8.x before you install cudnn7.6.3 as they can exist together.
+
 
 # How to use
 
