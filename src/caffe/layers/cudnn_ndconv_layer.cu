@@ -14,6 +14,18 @@ __global__ void sync_ndconv_groups() { }
 template <typename Dtype>
 void CudnnNdConvolutionLayer<Dtype>::Forward_gpu(
   const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  
+  #if 0 // CUDNN_VERSION_MIN(8, 0, 0)
+  int RetCnt;
+  bool found_conv_algorithm;
+  size_t free_memory, total_memory;
+  cudnnConvolutionFwdAlgoPerf_t     fwd_algo_pref_[4];
+  //cudnnConvolutionBwdDataAlgoPerf_t bwd_data_algo_pref_[4];
+
+  //get memory sizes
+  cudaMemGetInfo(&free_memory, &total_memory);
+  #endif
+
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();
@@ -28,7 +40,33 @@ void CudnnNdConvolutionLayer<Dtype>::Forward_gpu(
     // Forward through cuDNN in parallel over groups.
     for (int g = 0; g < this->group_; g++) {
       cudnnConvolutionFwdAlgo_t algo;
+      #if 0 // CUDNN_VERSION_MIN(8, 0, 0)
+      // choose forward algorithm for filter
+      // in forward filter the CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED is not implemented in cuDNN 8
+      CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(handle_[0],
+        bottom_descs_[i],
+        filter_desc_,
+        conv_descs_[i],
+        top_descs_[i],
+        4,
+        &RetCnt,
+        fwd_algo_pref_));
 
+      found_conv_algorithm = false;
+      for(int n=0;n<RetCnt;n++){
+        if (fwd_algo_pref_[n].status == CUDNN_STATUS_SUCCESS &&
+            fwd_algo_pref_[n].algo != CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED &&
+            fwd_algo_pref_[n].memory < free_memory){
+          found_conv_algorithm = true;
+          //fwd_algo_[i]                   = fwd_algo_pref_[n].algo;
+          //workspace_fwd_sizes_[i]        = fwd_algo_pref_[n].memory;
+          algo = fwd_algo_pref_[n].algo;
+          break;
+        }
+      }
+      if(!found_conv_algorithm) 
+         LOG(ERROR) << "[Forward_gpu()]cuDNN did not return a suitable algorithm for convolution.";
+      #else
       // pick the convolution algorithm
       // TODO(shelhamer) this should be done during reshape
       // TODO(shelhamer) the choice of automatic or manual algorithm picking
@@ -41,7 +79,7 @@ void CudnnNdConvolutionLayer<Dtype>::Forward_gpu(
                   CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT,
                   workspace_limit_bytes,  // memoryLimitInBytes,
                   &algo));
-
+      #endif
       // get minimum size of the workspace needed for the desired algorithm
       size_t workspaceSizeInBytes_temp = 0;
 
