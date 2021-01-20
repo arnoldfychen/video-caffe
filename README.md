@@ -1,3 +1,75 @@
+# video-caffe
+C3D version Caffe, with some specific changes for Jetson Xavier NX or Nano
+
+The original version video-caffe can only work with cuDNN7.x, but since CUDA11.x, only cudnn8 is supported, so I made some changes in code to make video-caffe can work with CUDA11.x + cuDNN8.x.
+
+# Requirements \[Deprecated\]
+Make sure that cuda10.2 and libcudnn7_7.x + libcudnn7-dev_7.x and opencv3/opencv4 are installed on your NX or Nano, if not, you can install cuda10.2 and opencv by NVIDIA's sdkmanager(Jet Pack4.4), and install libcudnn7_7.x + libcudnn7-dev_7.x by deb packages. As video-caffe uses cudnn API whose version is not higher than 7.x, but sdkmanager install cudnn 8.x on Xavier NX or Nano by default, so you have to install libcudnn7_7.x + libcudnn7-dev_7.x by manual. 
+
+install cuda10.2:
+
+    1)sudo dpkg -i cuda-repo-l4t-10-2-local-10.2.89_1.0-1_arm64.deb
+    2)sudo apt-get update
+    3)sudo apt-get install cuda-toolkit-10-2
+
+install cudnn7.6.3 for cuda10.0 (it actually also works for cuda10.2):
+
+    1)sudo dpkg -i libcudnn7_7.6.3.28-1+cuda10.0_arm64.deb
+    2)sudo dpkg -i libcudnn7-dev_7.6.3.28-1+cuda10.0_arm64.deb 
+
+If you installed your NX or Nano with sdkmanager, cuda10.2 should be there and you don't need install it by manual, but you may have to install cudnn7.6.3 by manual as cudnn8.x is installed by sdkmanager by default. Please note you don't need remove cudnn8.x before you install cudnn7.6.3 as they can exist together.
+
+# How to use
+
+1.For a new Xavier NX or Nano, login with root and install the following tools and packages required by caffe:
+  
+    1)Remove old version cmake and get the latest source CMake code, and compile and install it on NX:    
+       apt-get remove cmake
+       wget https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3.tar.gz
+       tar xf cmake-3.17.3.tar.gz
+       cd cmake
+       ./bootstrap
+       make
+       make install
+  
+    2)Make Pythonr3.6 instead of Python2.7 as the default Python with Utbuntu's update-alternatives and upgrade pip and setuptools
+       #Remember to make Python3.6 as the default Python:
+       update-alternatives --install /usr/bin/python python /usr/bin/python2.7 10
+       update-alternatives --install /usr/bin/python python /usr/local/bin/python3.6 20
+
+       #then:
+       pip install -U pip
+       pip install -U setuptools
+       pip install python-dateutil   #Optional
+    
+    3)Install other tools and packages:
+       apt-get install git cmake-qt-gui 
+       apt-get install libprotobuf-dev protobuf-compiler libleveldb-dev libsnappy-dev libhdf5-serial-dev libgflags-dev libgoogle-glog-dev liblmdb-dev libatlas-base-dev gfortran libssl-dev 
+       apt-get install --no-install-recommends libboost-all-dev
+       apt-get install python-dev python-numpy
+  
+  
+2. Download the source code and build out this specific C3D caffe:
+
+       git clone https://github.com/BrightDotAi/video-caffe
+       cd video-caffe
+       mkdir build && cd build
+       make all -j6
+       make install
+  
+3.Copy the .so files under build/lib/ to the lib directory of our DeepStream application, e.g., /home/jzyq/bright/ext/lib/, 
+  and copy the directory build/inclue to application's include path or just add build/include into application's include path.
+
+4.For applying video-caffe model to applications, please also copy c3d_ucf101_deploy.prototxt and the model weights file that you train out, such as c3d_ucf101_iter_4999.caffemodel into your application to application’s directory, and set the full path of them as the parameters for Classifier.Load(string model_file,string trained_file). 
+
+Please note do the following changes if you face errors like "error: ‘CV_LOAD_IMAGE_COLOR’ was not declared in this scope"(this implies your opencv version is too new, e.g. 4.1, as CV_LOAD_IMAGE_COLOR is an opencv 3.x definition):
+
+   1) In src/caffe/util/io.cpp and src/caffe/layers/window_data_layer.cpp, change CV_LOAD_IMAGE_COLOR to cv::IMREAD_COLOR, and change CV_LOAD_IMAGE_GRAYSCALE  to cv::IMREAD_GRAYSCALE .
+
+   2) In src/caffe/util/io.cpp, change CV_CAP_PROP_FRAME_COUNT to cv::CAP_PROP_FRAME_COUNT, and change CV_CAP_PROP_POS_FRAMES  to cv::CAP_PROP_POS_FRAMES .
+
+
+# Original README:
 # Video-Caffe: Caffe with C3D implementation and video reader
 
 [![Build Status](https://travis-ci.org/chuckcho/video-caffe.svg?branch=master)](https://travis-ci.org/chuckcho/video-caffe)
