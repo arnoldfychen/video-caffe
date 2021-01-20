@@ -1,8 +1,22 @@
 # video-caffe
 C3D version Caffe, with some specific changes for Jetson Xavier NX or Nano
 
+# WTR cuDNN8
 The original version video-caffe can only work with cuDNN7.x, but since CUDA11.x, only cudnn8 is supported, so I made some changes in code to make video-caffe can work with CUDA11.x + cuDNN8.x.
 
+I have made code changes in fo cudnn8:
+
+       cmake/Cuda.cmake
+       src/caffe/layers/cudnn_ndconv_layer.cu
+       src/caffe/layers/cudnn_conv_layer.cpp
+       src/caffe/layers/cudnn_deconv_layer.cpp
+
+If you do want to use video-caffe with cudnn8, you need to make these changes in the above files:
+
+    1) Open the file “cmake/Cuda.cmake”.  replace "cudnn.h" with "cudnn_version.h" by commenting/uncommenting the lines where they are.
+    2) In cudnn_ndconv_layer.cu, cudnn_conv_layer.cpp and cudnn_deconv_layer.cpp  change all "#if 0 // CUDNN_VERSION_MIN(8, 0, 0)" to "if CUDNN_VERSION_MIN(8, 0, 0)".
+
+# As cuDNN8.x is supported by the above changes, the following requirements are not necessary now: 
 # Requirements \[Deprecated\]
 Make sure that cuda10.2 and libcudnn7_7.x + libcudnn7-dev_7.x and opencv3/opencv4 are installed on your NX or Nano, if not, you can install cuda10.2 and opencv by NVIDIA's sdkmanager(Jet Pack4.4), and install libcudnn7_7.x + libcudnn7-dev_7.x by deb packages. As video-caffe uses cudnn API whose version is not higher than 7.x, but sdkmanager install cudnn 8.x on Xavier NX or Nano by default, so you have to install libcudnn7_7.x + libcudnn7-dev_7.x by manual. 
 
