@@ -110,11 +110,20 @@ void CuDNNDeconvolutionLayer<Dtype>::Reshape(
   const int* stride_data = this->stride_.cpu_data();
   const int stride_h = stride_data[0];
   const int stride_w = stride_data[1];
+  #if 0 // CUDNN_VERSION_MIN(8, 0, 0)
+  int RetCnt;
+  bool found_conv_algorithm;
+  size_t free_memory, total_memory;
+  cudnnConvolutionFwdAlgoPerf_t     fwd_algo_pref_[4];
+  cudnnConvolutionBwdDataAlgoPerf_t bwd_data_algo_pref_[4];
 
+  //get memory sizes
+  cudaMemGetInfo(&free_memory, &total_memory);
+  #else
   // Specify workspace limit for kernels directly until we have a
   // planning strategy and a rewrite of Caffe's GPU memory mangagement
   size_t workspace_limit_bytes = 8*1024*1024;
-
+  #endif
   for (int i = 0; i < bottom.size(); i++) {
     cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
                                   this->num_,
@@ -141,7 +150,63 @@ void CuDNNDeconvolutionLayer<Dtype>::Reshape(
                                      pad_w,
                                      stride_h,
                                      stride_w);
+    #if 0 // CUDNN_VERSION_MIN(8, 0, 0)
+    // choose forward algorithm for filter
+    // in forward filter the CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED is not implemented in cuDNN 8
+    CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(handle_[0],
+      top_descs_[i],
+      filter_desc_,
+      conv_descs_[i],
+      bottom_descs_[i],
+      4,
+      &RetCnt,
+      fwd_algo_pref_));
 
+    found_conv_algorithm = false;
+    for(int n=0;n<RetCnt;n++){
+      if (fwd_algo_pref_[n].status == CUDNN_STATUS_SUCCESS &&
+          fwd_algo_pref_[n].algo != CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED &&
+          fwd_algo_pref_[n].memory < free_memory){
+        found_conv_algorithm = true;
+        fwd_algo_[i]                   = fwd_algo_pref_[n].algo;
+        workspace_fwd_sizes_[i]        = fwd_algo_pref_[n].memory;
+        break;
+      }
+    }
+    if(!found_conv_algorithm) LOG(ERROR) << "cuDNN did not return a suitable algorithm for convolution.";
+    else{
+        // choose backward algorithm for filter
+        // for better or worse, just a fixed constant due to the missing
+        // cudnnGetConvolutionBackwardFilterAlgorithm in cuDNN version 8.0
+        bwd_filter_algo_[i] = CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0;
+        //twice the amount of the forward search to be save
+        workspace_bwd_filter_sizes_[i] = 2*workspace_fwd_sizes_[i];
+    }
+
+    // choose backward algo for data
+    CUDNN_CHECK(cudnnGetConvolutionBackwardDataAlgorithm_v7(handle_[0],
+      filter_desc_,
+      bottom_descs_[i],
+      conv_descs_[i],
+      top_descs_[i],
+      4,
+      &RetCnt,
+      bwd_data_algo_pref_));
+    
+    found_conv_algorithm = false;
+    for(int n=0;n<RetCnt;n++){
+      if (bwd_data_algo_pref_[n].status == CUDNN_STATUS_SUCCESS &&
+          bwd_data_algo_pref_[n].algo != CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD &&
+          bwd_data_algo_pref_[n].algo != CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED &&
+          bwd_data_algo_pref_[n].memory < free_memory){
+        found_conv_algorithm = true;
+        bwd_data_algo_[i]              = bwd_data_algo_pref_[n].algo;
+        workspace_bwd_data_sizes_[i]   = bwd_data_algo_pref_[n].memory;
+        break;
+      }
+    }
+    if(!found_conv_algorithm) LOG(ERROR) << "cuDNN did not return a suitable algorithm for convolution.";
+   #else
     // choose forward and backward algorithms + workspace(s)
     CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm(
         handle_[0],
@@ -225,6 +290,7 @@ void CuDNNDeconvolutionLayer<Dtype>::Reshape(
         top_descs_[i],
         bwd_data_algo_[i],
         &workspace_bwd_data_sizes_[i]));
+    #endif
   }
 
   // reduce over all workspace sizes to get a maximum to allocate / reallocate
