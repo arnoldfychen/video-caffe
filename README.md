@@ -2,7 +2,7 @@
 C3D version Caffe, with some specific changes for Jetson Xavier NX or Nano
 
 # WTR cuDNN8
-The original version video-caffe can only work with cuDNN7.x, but since CUDA11.x, only cudnn8 is supported, so I made some changes in code to make video-caffe can work with CUDA11.x + cuDNN8.x.
+The original version video-caffe can only work with cuDNN7.x, but since CUDA11.x, only cudnn8 is supported, so I made some changes in code to make video-caffe able to work with CUDA11.x + cuDNN8.x.
 
 I have made code changes in fo cudnn8:
 
